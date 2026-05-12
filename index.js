@@ -102,7 +102,7 @@ app.post('/webhook', async (req, res) => {
 
     const numero = mensaje.from;
     const texto = mensaje.text.body;
-
+console.log('Enviando respuesta a:', numero);
     const respuesta = await responderMensaje(numero, texto);
     await enviarMensaje(numero, respuesta);
   } catch (error) {

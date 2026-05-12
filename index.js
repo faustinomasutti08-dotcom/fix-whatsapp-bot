@@ -106,7 +106,7 @@ app.post('/webhook', async (req, res) => {
     const respuesta = await responderMensaje(numero, texto);
     await enviarMensaje(numero, respuesta);
   } catch (error) {
-    console.error('Error procesando mensaje:', error.message);
+    if (error.response) {       console.error('Detalle:', JSON.stringify(error.response.data));     }
   }
 });
 

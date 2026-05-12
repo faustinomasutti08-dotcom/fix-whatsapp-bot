@@ -100,9 +100,13 @@ app.post('/webhook', async (req, res) => {
 
     if (!mensaje || mensaje.type !== 'text') return;
 
-    const numero = mensaje.from;
+    let numero = mensaje.from;
+    if (numero.startsWith('549')) {
+      numero = '54' + numero.slice(3);
+    }
     const texto = mensaje.text.body;
-console.log('Enviando respuesta a:', numero);
+
+    console.log('Enviando respuesta a:', numero);
     const respuesta = await responderMensaje(numero, texto);
     await enviarMensaje(numero, respuesta);
   } catch (error) {

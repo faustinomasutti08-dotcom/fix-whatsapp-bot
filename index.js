@@ -61,7 +61,6 @@ async function responderMensaje(numero, mensaje) {
   return respuesta;
 }
 
-
 async function enviarMensaje(numero, texto) {
   await axios.post(
     `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`,
@@ -89,7 +88,6 @@ app.get('/webhook', (req, res) => {
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
-    
   }
 });
 
@@ -108,7 +106,10 @@ app.post('/webhook', async (req, res) => {
     const respuesta = await responderMensaje(numero, texto);
     await enviarMensaje(numero, respuesta);
   } catch (error) {
-    if (error.response) {       console.error('Detalle:', JSON.stringify(error.response.data));     }
+    console.error('Error procesando mensaje:', error.message);
+    if (error.response) {
+      console.error('Detalle:', JSON.stringify(error.response.data));
+    }
   }
 });
 

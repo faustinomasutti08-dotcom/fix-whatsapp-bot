@@ -61,6 +61,7 @@ async function responderMensaje(numero, mensaje) {
   return respuesta;
 }
 
+
 async function enviarMensaje(numero, texto) {
   await axios.post(
     `https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`,

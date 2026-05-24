@@ -19,16 +19,16 @@ async function getSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
-async function registrarLead(numero, nombre, primerMensaje, tipoTecho) {
+async function registrarLead(numero, nombre, primerMensaje, tipoTecho, metros) {
   try {
     const sheets = await getSheetsClient();
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Mendoza' });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja 1!A:G',
+      range: 'Hoja 1!A:H',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo', '']],
+        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo', metros || '', '']],
       },
     });
   } catch (err) {
@@ -93,7 +93,8 @@ CÓMO RESPONDÉS:
 - Respondés en español argentino, tuteás al cliente
 - Usás el nombre del cliente cuando lo sabés
 - Nunca inventás información que no tenés
-- Cuando el cliente quiere cerrar el trabajo, pedir una visita, o hacer una consulta particular o especial, respondé exactamente esto: "Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
+- Cuando el cliente quiere cerrar el trabajo o pedir una visita, antes de pasarlo con Faustino pedile su ubicación: "¡Perfecto! Para coordinar la visita, ¿me podés compartir un link de Google Maps de tu domicilio? 📍" y cuando lo mande, respondé: "¡Gracias! Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
+- Si el cliente hace una consulta particular o especial que no sabés responder, respondé exactamente esto: "Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
 - Si te preguntan algo que no sabés, también derivá a Faustino con ese mismo mensaje
 
 AL INICIO DE LA CONVERSACIÓN:
@@ -130,14 +131,19 @@ function detectarTipoTecho(texto) {
 }
 
 function detectarMetros(texto) {
-  const match = texto.match(/(\d+[\.,]?\d*)\s*(m2|m²|metros?(\s*cuadrados?)?)/i);
+  const match = texto.match(/(\d+[\.,]?\d*)\s*(m2|m²|mts?\.?|metros?(\s*cuadrados?)?)/i);
   return match ? match[1].replace(',', '.') : null;
+}
+
+function detectarUbicacion(texto) {
+  const match = texto.match(/https?:\/\/(maps\.google\.com|goo\.gl\/maps|maps\.app\.goo\.gl|google\.com\/maps)\S*/i);
+  return match ? match[0] : null;
 }
 
 async function responderMensaje(numero, mensaje) {
   if (!conversaciones.has(numero)) {
     conversaciones.set(numero, []);
-    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', metros: '', registrado: false });
+    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', metros: '', ubicacion: '', registrado: false });
   }
 
   const datos = datosCliente.get(numero);
@@ -159,6 +165,14 @@ async function responderMensaje(numero, mensaje) {
     }
   }
 
+  const ubicacionDetectada = detectarUbicacion(mensaje);
+  if (ubicacionDetectada && !datos.ubicacion) {
+    datos.ubicacion = ubicacionDetectada;
+    if (datos.registrado) {
+      await actualizarColumna(numero, 'H', ubicacionDetectada);
+    }
+  }
+
   historial.push({ role: 'user', content: mensaje });
 
   if (historial.length > 10) {
@@ -176,7 +190,7 @@ async function responderMensaje(numero, mensaje) {
   historial.push({ role: 'assistant', content: respuesta });
 
   if (!datos.registrado) {
-    await registrarLead(numero, datos.nombre, datos.primerMensaje, datos.tipoTecho);
+    await registrarLead(numero, datos.nombre, datos.primerMensaje, datos.tipoTecho, datos.metros);
     datos.registrado = true;
   }
 

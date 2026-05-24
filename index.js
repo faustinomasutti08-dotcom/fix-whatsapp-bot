@@ -25,10 +25,10 @@ async function registrarLead(numero, nombre, primerMensaje, tipoTecho) {
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Mendoza' });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja 1!A:F',
+      range: 'Hoja 1!A:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo']],
+        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo', '']],
       },
     });
   } catch (err) {
@@ -36,25 +36,25 @@ async function registrarLead(numero, nombre, primerMensaje, tipoTecho) {
   }
 }
 
-async function actualizarTipoTecho(numero, tipoTecho) {
+async function actualizarColumna(numero, columna, valor) {
   try {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja 1!B:E',
+      range: 'Hoja 1!B:B',
     });
     const rows = res.data.values || [];
     const rowIndex = rows.findIndex(row => row[0] === numero);
     if (rowIndex !== -1) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Hoja 1!E${rowIndex + 1}`,
+        range: `Hoja 1!${columna}${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [[tipoTecho]] },
+        requestBody: { values: [[valor]] },
       });
     }
   } catch (err) {
-    console.error('Error al actualizar tipo de techo:', err.message);
+    console.error('Error al actualizar columna:', err.message);
   }
 }
 
@@ -129,10 +129,15 @@ function detectarTipoTecho(texto) {
   return null;
 }
 
+function detectarMetros(texto) {
+  const match = texto.match(/(\d+[\.,]?\d*)\s*(m2|m²|metros?(\s*cuadrados?)?)/i);
+  return match ? match[1].replace(',', '.') : null;
+}
+
 async function responderMensaje(numero, mensaje) {
   if (!conversaciones.has(numero)) {
     conversaciones.set(numero, []);
-    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', registrado: false });
+    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', metros: '', registrado: false });
   }
 
   const datos = datosCliente.get(numero);
@@ -142,7 +147,15 @@ async function responderMensaje(numero, mensaje) {
   if (tipoDetectado && !datos.tipoTecho) {
     datos.tipoTecho = tipoDetectado;
     if (datos.registrado) {
-      await actualizarTipoTecho(numero, tipoDetectado);
+      await actualizarColumna(numero, 'E', tipoDetectado);
+    }
+  }
+
+  const metrosDetectados = detectarMetros(mensaje);
+  if (metrosDetectados && !datos.metros) {
+    datos.metros = metrosDetectados;
+    if (datos.registrado) {
+      await actualizarColumna(numero, 'G', metrosDetectados);
     }
   }
 
@@ -168,9 +181,12 @@ async function responderMensaje(numero, mensaje) {
   }
 
   if (!datos.nombre) {
-    const nombreMatch = mensaje.match(/^(soy |me llamo |mi nombre es )?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);
-    if (nombreMatch && historial.length <= 4) {
+    const nombreMatch = mensaje.match(/^(soy |me llamo |mi nombre es )?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/i);
+    if (nombreMatch && historial.length <= 6) {
       datos.nombre = nombreMatch[2];
+      if (datos.registrado) {
+        await actualizarColumna(numero, 'C', datos.nombre);
+      }
     }
   }
 

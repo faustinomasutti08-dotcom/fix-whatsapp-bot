@@ -1,11 +1,62 @@
 const express = require('express');
 const axios = require('axios');
 const Anthropic = require('@anthropic-ai/sdk');
+const { google } = require('googleapis');
 
 const app = express();
 app.use(express.json());
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const SPREADSHEET_ID = '197INTKLBzr94Js87ln-K0bskbRygAPmLjc2EjjBsoJo';
+
+async function getSheetsClient() {
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  return google.sheets({ version: 'v4', auth });
+}
+
+async function registrarLead(numero, nombre, primerMensaje, tipoTecho) {
+  try {
+    const sheets = await getSheetsClient();
+    const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Mendoza' });
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Hoja1!A:F',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo']],
+      },
+    });
+  } catch (err) {
+    console.error('Error al registrar en Sheets:', err.message);
+  }
+}
+
+async function actualizarTipoTecho(numero, tipoTecho) {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Hoja1!B:E',
+    });
+    const rows = res.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === numero);
+    if (rowIndex !== -1) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Hoja1!E${rowIndex + 1}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[tipoTecho]] },
+      });
+    }
+  } catch (err) {
+    console.error('Error al actualizar tipo de techo:', err.message);
+  }
+}
 
 const SYSTEM_PROMPT = `Sos el asistente virtual de FIX, empresa de impermeabilización de Mendoza.
 
@@ -40,12 +91,15 @@ FORMAS DE PAGO:
 CÓMO RESPONDÉS:
 - Sos amable, claro y directo
 - Respondés en español argentino, tuteás al cliente
+- Usás el nombre del cliente cuando lo sabés
 - Nunca inventás información que no tenés
 - Cuando el cliente quiere cerrar el trabajo, pedir una visita, o hacer una consulta particular o especial, respondé exactamente esto: "Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
 - Si te preguntan algo que no sabés, también derivá a Faustino con ese mismo mensaje
 
-CUANDO EL CLIENTE ARRANCA CON "Hola, quiero más información" O SIMILAR (viene de publicidad):
-Respondé así: "¡Hola! 👋 Bienvenido a FIX, impermeabilización profesional en Mendoza. Para darte el precio exacto, ¿qué tipo de techo tenés? 🏠 Teja, chapa o losa. También podés ver nuestros trabajos en Instagram: https://www.instagram.com/fixing_mendoza/"
+AL INICIO DE LA CONVERSACIÓN:
+- Si el cliente arranca con "Hola, quiero más información" o similar (viene de publicidad), primero preguntale su nombre: "¡Hola! 👋 Bienvenido a FIX, impermeabilización profesional en Mendoza. ¿Cómo te llamás?"
+- Una vez que te diga el nombre, respondé: "¡Buenísimo, [nombre]! Para darte el precio exacto, ¿qué tipo de techo tenés? 🏠 Teja, chapa o losa. También podés ver nuestros trabajos en Instagram: https://www.instagram.com/fixing_mendoza/"
+- Si el cliente arranca directamente con una pregunta sin saludar, respondé normalmente sin pedir el nombre.
 
 CUANDO PREGUNTEN POR PARCHES O REPARACIONES PARCIALES:
 Aclarales que SÍ se puede hacer pero que nosotros no hacemos parches — trabajamos por paños completos. El precio sigue siendo por metro cuadrado: $23.500/m² para teja y $21.500/m² para chapa y losa, incluye mano de obra y materiales.
@@ -65,13 +119,33 @@ PREGUNTAS FRECUENTES:
 Siempre respondé de forma breve y ofrecé seguir ayudando.`;
 
 const conversaciones = new Map();
+const datosCliente = new Map();
+
+function detectarTipoTecho(texto) {
+  const t = texto.toLowerCase();
+  if (t.includes('teja')) return 'Teja';
+  if (t.includes('chapa')) return 'Chapa';
+  if (t.includes('losa')) return 'Losa';
+  return null;
+}
 
 async function responderMensaje(numero, mensaje) {
   if (!conversaciones.has(numero)) {
     conversaciones.set(numero, []);
+    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', registrado: false });
   }
 
+  const datos = datosCliente.get(numero);
   const historial = conversaciones.get(numero);
+
+  const tipoDetectado = detectarTipoTecho(mensaje);
+  if (tipoDetectado && !datos.tipoTecho) {
+    datos.tipoTecho = tipoDetectado;
+    if (datos.registrado) {
+      await actualizarTipoTecho(numero, tipoDetectado);
+    }
+  }
+
   historial.push({ role: 'user', content: mensaje });
 
   if (historial.length > 10) {
@@ -87,6 +161,18 @@ async function responderMensaje(numero, mensaje) {
 
   const respuesta = response.content[0].text;
   historial.push({ role: 'assistant', content: respuesta });
+
+  if (!datos.registrado) {
+    await registrarLead(numero, datos.nombre, datos.primerMensaje, datos.tipoTecho);
+    datos.registrado = true;
+  }
+
+  if (!datos.nombre) {
+    const nombreMatch = mensaje.match(/^(soy |me llamo |mi nombre es )?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)/);
+    if (nombreMatch && historial.length <= 4) {
+      datos.nombre = nombreMatch[2];
+    }
+  }
 
   return respuesta;
 }

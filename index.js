@@ -25,7 +25,7 @@ async function registrarLead(numero, nombre, primerMensaje, tipoTecho) {
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Mendoza' });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja1!A:F',
+      range: 'Hoja 1!A:F',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo']],
@@ -41,14 +41,14 @@ async function actualizarTipoTecho(numero, tipoTecho) {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja1!B:E',
+      range: 'Hoja 1!B:E',
     });
     const rows = res.data.values || [];
     const rowIndex = rows.findIndex(row => row[0] === numero);
     if (rowIndex !== -1) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Hoja1!E${rowIndex + 1}`,
+        range: `Hoja 1!E${rowIndex + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [[tipoTecho]] },
       });

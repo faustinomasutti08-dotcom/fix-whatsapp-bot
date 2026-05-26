@@ -19,16 +19,16 @@ async function getSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
-async function registrarLead(numero, nombre, primerMensaje, tipoTecho, metros) {
+async function registrarLead(numero, nombre, tipoTecho, metros) {
   try {
     const sheets = await getSheetsClient();
     const fecha = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Mendoza' });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Hoja 1!A:H',
+      range: 'Hoja 1!A:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[fecha, numero, nombre || '', primerMensaje, tipoTecho || '', 'Nuevo', metros || '', '']],
+        values: [[fecha, numero, nombre || '', tipoTecho || '', 'Nuevo', metros || '', '']],
       },
     });
   } catch (err) {
@@ -68,7 +68,7 @@ INFORMACIÓN DEL NEGOCIO:
 - Precios (incluye mano de obra y materiales):
   * Teja: $23.500 por m²
   * Chapa y losa: $21.500 por m²
-- Garantía: 3 años en todos los trabajos
+- Garantía: 5 años en todos los trabajos
 - Presupuesto: Gratuito y sin compromiso
 - Instagram: https://www.instagram.com/fixing_mendoza/
 
@@ -79,7 +79,7 @@ PROCESO DE TRABAJO:
 4. Ejecución del trabajo:
    - Se coloca una tela geotextil con una capa de emulsión asfáltica
    - Se agrega otra capa de emulsión asfáltica
-   - Se aplica una membrana líquida del color que el cliente elija (para que pase desapercibida)
+   - Se aplica una membrana líquida del color que el cliente elija, que sirve para proteger el producto de los rayos del sol y para que la terminación pase desapercibida integrándose al techo
 
 TIEMPOS DE TRABAJO:
 - Un techo de entre 50 y 100 m² se termina en aproximadamente 2 días
@@ -93,13 +93,14 @@ CÓMO RESPONDÉS:
 - Respondés en español argentino, tuteás al cliente
 - Usás el nombre del cliente cuando lo sabés
 - Nunca inventás información que no tenés
-- Cuando el cliente quiere cerrar el trabajo o pedir una visita, antes de pasarlo con Faustino pedile su ubicación: "¡Perfecto! Para coordinar la visita, ¿me podés compartir un link de Google Maps de tu domicilio? 📍" y cuando lo mande, respondé: "¡Gracias! Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
-- Si el cliente hace una consulta particular o especial que no sabés responder, respondé exactamente esto: "Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad 🙌"
-- Si te preguntan algo que no sabés, también derivá a Faustino con ese mismo mensaje
+- Cuando el cliente quiere cerrar el trabajo o pedir una visita: si ya sabés el tipo de techo y los metros cuadrados, calculá el monto aproximado (metros × precio por m²) y presentáselo así: "El trabajo te quedaría en aproximadamente $[monto]. ¿Querés que coordinemos una visita para confirmar el presupuesto sin compromiso?" Si acepta, pedile la ubicación: "Perfecto, ¿me podés compartir un link de Google Maps de tu domicilio? 📍" y cuando lo mande: "¡Genial! Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad."
+- Si no sabés el tipo de techo o los metros, preguntale lo que falta antes de calcular el monto.
+- Si el cliente hace una consulta particular o especial que no sabés responder: "Te paso con Faustino para coordinar los detalles. Él te va a responder a la brevedad."
+- Si te preguntan algo que no sabés, también derivá a Faustino con ese mismo mensaje.
 
 AL INICIO DE LA CONVERSACIÓN:
-- Si el cliente arranca con "Hola, quiero más información" o similar (viene de publicidad), primero preguntale su nombre: "¡Hola! 👋 Bienvenido a FIX, impermeabilización profesional en Mendoza. ¿Cómo te llamás?"
-- Una vez que te diga el nombre, respondé: "¡Buenísimo, [nombre]! Para darte el precio exacto, ¿qué tipo de techo tenés? 🏠 Teja, chapa o losa. También podés ver nuestros trabajos en Instagram: https://www.instagram.com/fixing_mendoza/"
+- Si el cliente arranca con "Hola, quiero más información" o similar (viene de publicidad), respondé de forma natural y cálida: "Bienvenido a FIX, impermeabilización profesional en Mendoza. ¿En qué te podemos ayudar? ¿Cómo es tu nombre?"
+- Una vez que te diga el nombre, respondé: "Buenísimo, [nombre]. Para darte el precio exacto, ¿qué tipo de techo tenés? Teja, chapa o losa. También podés ver nuestros trabajos en Instagram: https://www.instagram.com/fixing_mendoza/"
 - Si el cliente arranca directamente con una pregunta sin saludar, respondé normalmente sin pedir el nombre.
 
 CUANDO PREGUNTEN POR PARCHES O REPARACIONES PARCIALES:
@@ -110,7 +111,7 @@ PREGUNTAS FRECUENTES:
 - ¿Trabajan en mi zona? → Trabajamos en la mayor parte de Mendoza
 - ¿Qué tipos de techo trabajan? → Losa, chapa y teja
 - ¿Cuándo pueden venir? → Lunes a sábado de 8 a 20hs, coordinamos fecha cuando hablás con Faustino
-- ¿Qué garantía tienen? → 3 años de garantía en todos nuestros trabajos
+- ¿Qué garantía tienen? → 5 años de garantía en todos nuestros trabajos
 - ¿Hacen presupuesto? → Sí, el presupuesto es gratuito y sin compromiso
 - ¿Cómo pago? → 50/50 o tarjeta de crédito
 - ¿Cuánto tarda el trabajo? → Un techo de 50 a 100 m² se hace en 2 días
@@ -143,7 +144,7 @@ function detectarUbicacion(texto) {
 async function responderMensaje(numero, mensaje) {
   if (!conversaciones.has(numero)) {
     conversaciones.set(numero, []);
-    datosCliente.set(numero, { nombre: '', primerMensaje: mensaje, tipoTecho: '', metros: '', ubicacion: '', registrado: false });
+    datosCliente.set(numero, { nombre: '', tipoTecho: '', metros: '', ubicacion: '', registrado: false });
   }
 
   const datos = datosCliente.get(numero);
@@ -153,7 +154,7 @@ async function responderMensaje(numero, mensaje) {
   if (tipoDetectado && !datos.tipoTecho) {
     datos.tipoTecho = tipoDetectado;
     if (datos.registrado) {
-      await actualizarColumna(numero, 'E', tipoDetectado);
+      await actualizarColumna(numero, 'D', tipoDetectado);
     }
   }
 
@@ -161,7 +162,7 @@ async function responderMensaje(numero, mensaje) {
   if (metrosDetectados && !datos.metros) {
     datos.metros = metrosDetectados;
     if (datos.registrado) {
-      await actualizarColumna(numero, 'G', metrosDetectados);
+      await actualizarColumna(numero, 'F', metrosDetectados);
     }
   }
 
@@ -169,7 +170,7 @@ async function responderMensaje(numero, mensaje) {
   if (ubicacionDetectada && !datos.ubicacion) {
     datos.ubicacion = ubicacionDetectada;
     if (datos.registrado) {
-      await actualizarColumna(numero, 'H', ubicacionDetectada);
+      await actualizarColumna(numero, 'G', ubicacionDetectada);
     }
   }
 
@@ -190,7 +191,7 @@ async function responderMensaje(numero, mensaje) {
   historial.push({ role: 'assistant', content: respuesta });
 
   if (!datos.registrado) {
-    await registrarLead(numero, datos.nombre, datos.primerMensaje, datos.tipoTecho, datos.metros);
+    await registrarLead(numero, datos.nombre, datos.tipoTecho, datos.metros);
     datos.registrado = true;
   }
 
